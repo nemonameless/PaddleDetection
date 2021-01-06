@@ -29,12 +29,82 @@ from paddle.regularizer import L2Decay
 
 from paddle import ParamAttr
 from paddle.nn.initializer import Normal, Constant
+from paddle.vision.ops import DeformConv2D
 
 
 def _to_list(l):
     if isinstance(l, (list, tuple)):
         return list(l)
     return [l]
+
+
+class DeformableConvV2(nn.Layer):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 dilation=1,
+                 groups=1,
+                 weight_attr=None,
+                 bias_attr=None,
+                 lr_scale=1,
+                 regularizer=None,
+                 name=None):
+        super(DeformableConvV2, self).__init__()
+        self.offset_channel = 2 * kernel_size**2
+        self.mask_channel = kernel_size**2
+
+        if lr_scale==1 and regularizer is None:
+            offset_bias_attr = ParamAttr(
+                initializer=Constant(0.),
+                name='{}._conv_offset.bias'.format(name))
+        else:
+            offset_bias_attr = ParamAttr(
+                initializer=Constant(0.),
+                learning_rate=lr_scale,
+                regularizer=regularizer,
+                name='{}._conv_offset.bias'.format(name))
+        self.conv_offset = nn.Conv2D(
+            in_channels,
+            3 * kernel_size**2,
+            kernel_size,
+            stride=stride,
+            padding=(kernel_size - 1) // 2,
+            weight_attr=ParamAttr(
+                initializer=Constant(0.0),
+                name='{}._conv_offset.weight'.format(name)),
+            bias_attr=offset_bias_attr)
+
+        if bias_attr:
+            dcn_bias_attr = ParamAttr(
+                name=name + "_bias",
+                initializer=Constant(value=0),
+                regularizer=L2Decay(0.),
+                learning_rate=2.)
+        else:
+            dcn_bias_attr = False
+        self.conv_dcn = DeformConv2D(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=(kernel_size - 1) // 2 * dilation,
+            dilation=dilation,
+            groups=groups,
+            weight_attr=weight_attr,
+            bias_attr=dcn_bias_attr)
+
+    def forward(self, x):
+        offset_mask = self.conv_offset(x)
+        offset, mask = paddle.split(
+            offset_mask,
+            num_or_sections=[self.offset_channel, self.mask_channel],
+            axis=1)
+        mask = F.sigmoid(mask)
+        y = self.conv_dcn(x, offset, mask=mask)
+        return y
 
 
 class ConvNormLayer(nn.Layer):
@@ -50,21 +120,38 @@ class ConvNormLayer(nn.Layer):
         super(ConvNormLayer, self).__init__()
         assert norm_type in ['bn', 'sync_bn', 'gn']
 
-        self.conv = nn.Conv2D(
-            in_channels=ch_in,
-            out_channels=ch_out,
-            kernel_size=filter_size,
-            stride=stride,
-            padding=(filter_size - 1) // 2,
-            groups=1,
-            weight_attr=ParamAttr(
-                name=name + "_weight",
-                initializer=Normal(mean=0., std=0.01),
-                learning_rate=1.),
-            bias_attr = ParamAttr(
-                name=name + "_bias",
-                initializer=Constant(value=0),
-                learning_rate=2.))
+        if use_dcn==False:
+            self.conv = nn.Conv2D(
+                in_channels=ch_in,
+                out_channels=ch_out,
+                kernel_size=filter_size,
+                stride=stride,
+                padding=(filter_size - 1) // 2,
+                groups=1,
+                weight_attr=ParamAttr(
+                    name=name + "_weight",
+                    initializer=Normal(mean=0., std=0.01),
+                    learning_rate=1.),
+                bias_attr = ParamAttr(
+                    name=name + "_bias",
+                    initializer=Constant(value=0),
+                    learning_rate=2.))
+        else:
+            self.conv = DeformableConvV2(
+                in_channels=ch_in,
+                out_channels=ch_out,
+                kernel_size=filter_size,
+                stride=stride,
+                padding=(filter_size - 1) // 2,
+                groups=1,
+                weight_attr=ParamAttr(
+                    name=name + "_weight",
+                    initializer=Normal(mean=0., std=0.01),
+                    learning_rate=1.),
+                bias_attr=True,
+                lr_scale=2., #
+                regularizer=L2Decay(0.), #
+                name=name)
 
         param_attr = ParamAttr(
             name=norm_name + "_scale",
