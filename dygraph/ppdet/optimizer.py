@@ -42,7 +42,7 @@ class PiecewiseDecay(object):
         milestones (list): steps at which to decay learning rate
     """
 
-    def __init__(self, gamma=[0.1, 0.01], milestones=[8, 11]):
+    def __init__(self, gamma=[0.1, 0.01], milestones=[8, 11], values=None):
         super(PiecewiseDecay, self).__init__()
         if type(gamma) is not list:
             self.gamma = []
@@ -51,6 +51,7 @@ class PiecewiseDecay(object):
         else:
             self.gamma = gamma
         self.milestones = milestones
+        self.values = values
 
     def __call__(self,
                  base_lr=None,
@@ -59,7 +60,16 @@ class PiecewiseDecay(object):
                  step_per_epoch=None):
         if boundary is not None:
             boundary.extend([int(step_per_epoch) * i for i in self.milestones])
+        else:
+            # do not use LinearWarmup
+            boundary = [int(step_per_epoch) * i for i in self.milestones]
+        
+        # self.values is setted directly in config 
+        if self.values is not None:
+            assert len(self.milestones) + 1 == len(self.values)
+            return optimizer.lr.PiecewiseDecay(boundary, self.values)
 
+        # value is computed by self.gamma
         if value is not None:
             for i in self.gamma:
                 value.append(base_lr * i)
