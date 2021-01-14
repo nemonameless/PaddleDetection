@@ -21,6 +21,7 @@ import paddle
 import paddle.nn as nn
 
 import paddle.optimizer as optimizer
+from paddle.optimizer.lr import CosineAnnealingDecay
 import paddle.regularizer as regularizer
 from paddle import cos
 
@@ -30,6 +31,40 @@ __all__ = ['LearningRate', 'OptimizerBuilder']
 
 from ppdet.utils.logger import setup_logger
 logger = setup_logger(__name__)
+
+
+@serializable
+class CosineDecay(object):
+    """
+    Cosine learning rate decay
+
+    Args:
+        max_iters (float): max iterations for the training process.
+            if you commbine cosine decay with warmup, it is recommended that
+            the max_iter is much larger than the warmup iter
+    """
+
+    def __init__(self, max_epochs=1000):
+        self.max_epochs = max_epochs
+
+    def __call__(self, 
+                 base_lr=None,
+                 boundary=None,
+                 value=None,
+                 step_per_epoch=None):
+        assert base_lr is not None, "either base LR or values should be provided"
+
+        if boundary is not None and value is not None:
+            for i in range(int(boundary[-1]), self.max_epochs * int(step_per_epoch)):
+                boundary.append(i)
+
+                cur_epoch = math.floor(i / step_per_epoch)
+                decayed_lr = base_lr * 0.5 * (
+                    math.cos(cur_epoch * math.pi / self.max_epochs) + 1)
+                value.append(decayed_lr)
+            return optimizer.lr.PiecewiseDecay(boundary, value)
+
+        return optimizer.lr.CosineAnnealingDecay(base_lr, T_max=self.max_epochs * step_per_epoch)
 
 
 @serializable

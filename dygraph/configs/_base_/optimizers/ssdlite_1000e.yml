@@ -1,10 +1,10 @@
-epoch: 1746
+epoch: 1000
 
 LearningRate:
   base_lr: 0.4
   schedulers:
   - !CosineDecay
-    maxepoch: 1746
+    maxepoch: 1000
   - !LinearWarmup
     start_factor: 0.3333333333333333
     steps: 2000
