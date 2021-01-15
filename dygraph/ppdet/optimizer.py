@@ -47,24 +47,25 @@ class CosineDecay(object):
     def __init__(self, max_epochs=1000):
         self.max_epochs = max_epochs
 
-    def __call__(self, 
+    def __call__(self,
                  base_lr=None,
                  boundary=None,
                  value=None,
                  step_per_epoch=None):
         assert base_lr is not None, "either base LR or values should be provided"
 
+        iter_nums = self.max_epochs * int(step_per_epoch)
+
         if boundary is not None and value is not None:
-            for i in range(int(boundary[-1]), self.max_epochs * int(step_per_epoch)):
+            for i in range(int(boundary[-1]), iter_nums):
                 boundary.append(i)
 
-                cur_epoch = math.floor(i / step_per_epoch)
                 decayed_lr = base_lr * 0.5 * (
-                    math.cos(cur_epoch * math.pi / self.max_epochs) + 1)
+                    math.cos(i * math.pi / iter_nums) + 1)
                 value.append(decayed_lr)
             return optimizer.lr.PiecewiseDecay(boundary, value)
 
-        return optimizer.lr.CosineAnnealingDecay(base_lr, T_max=self.max_epochs * step_per_epoch)
+        return optimizer.lr.CosineAnnealingDecay(base_lr, T_max=iter_nums)
 
 
 @serializable
@@ -98,7 +99,7 @@ class PiecewiseDecay(object):
         else:
             # do not use LinearWarmup
             boundary = [int(step_per_epoch) * i for i in self.milestones]
-        
+
         # self.values is setted directly in config 
         if self.values is not None:
             assert len(self.milestones) + 1 == len(self.values)

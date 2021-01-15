@@ -73,7 +73,7 @@ class ConvBNLayer(nn.Layer):
                 bias_attr=bias_attr,
                 use_global_stats=False,
                 moving_mean_name=name + '_bn_mean',
-                moving_variance_name=name + '_bn_variance')  
+                moving_variance_name=name + '_bn_variance')
 
     def forward(self, x):
         x = self._conv(x)
