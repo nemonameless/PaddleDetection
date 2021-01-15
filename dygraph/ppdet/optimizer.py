@@ -39,9 +39,9 @@ class CosineDecay(object):
     Cosine learning rate decay
 
     Args:
-        max_iters (float): max iterations for the training process.
+        max_epochs (int): max epochs for the training process.
             if you commbine cosine decay with warmup, it is recommended that
-            the max_iter is much larger than the warmup iter
+            the max_iters is much larger than the warmup iter
     """
 
     def __init__(self, max_epochs=1000):
@@ -54,18 +54,18 @@ class CosineDecay(object):
                  step_per_epoch=None):
         assert base_lr is not None, "either base LR or values should be provided"
 
-        iter_nums = self.max_epochs * int(step_per_epoch)
+        max_iters = self.max_epochs * int(step_per_epoch)
 
         if boundary is not None and value is not None:
-            for i in range(int(boundary[-1]), iter_nums):
+            for i in range(int(boundary[-1]), max_iters):
                 boundary.append(i)
 
                 decayed_lr = base_lr * 0.5 * (
-                    math.cos(i * math.pi / iter_nums) + 1)
+                    math.cos(i * math.pi / max_iters) + 1)
                 value.append(decayed_lr)
             return optimizer.lr.PiecewiseDecay(boundary, value)
 
-        return optimizer.lr.CosineAnnealingDecay(base_lr, T_max=iter_nums)
+        return optimizer.lr.CosineAnnealingDecay(base_lr, T_max=max_iters)
 
 
 @serializable
@@ -173,7 +173,6 @@ class LearningRate(object):
 class OptimizerBuilder():
     """
     Build optimizer handles
-
     Args:
         regularizer (object): an `Regularizer` instance
         optimizer (object): an `Optimizer` instance

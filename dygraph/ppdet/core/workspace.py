@@ -99,7 +99,7 @@ def _load_config_with_base(file_path):
     return file_cfg
 
 
-WITHOUT_BACKGROUND_ARCHS = ['YOLOv3']
+WITHOUT_BACKGROUND_ARCHS = ['YOLOv3', 'FCOS']
 
 
 def _parse_with_background():
@@ -126,6 +126,7 @@ def load_config(file_path):
 
     # load config from file and merge into global config
     cfg = _load_config_with_base(file_path)
+    cfg['filename'] = os.path.splitext(os.path.split(file_path)[-1])[0]
     merge_config(cfg)
 
     # parse config from merged config

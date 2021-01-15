@@ -11,6 +11,8 @@ from . import mask_rcnn
 from . import yolo
 from . import cascade_rcnn
 from . import ssd
+from . import fcos
+from . import solov2
 
 from .meta_arch import *
 from .faster_rcnn import *
@@ -18,3 +20,5 @@ from .mask_rcnn import *
 from .yolo import *
 from .cascade_rcnn import *
 from .ssd import *
+from .fcos import *
+from .solov2 import *
