@@ -149,15 +149,20 @@ class DecodeOp(BaseOperator):
 
 @register_op
 class PermuteOp(BaseOperator):
-    def __init__(self):
+    def __init__(self, to_bgr=False):
         """
         Change the channel to be (C, H, W)
+        Args:
+            to_bgr (bool): whether convert RGB to BGR
         """
         super(PermuteOp, self).__init__()
+        self.to_bgr = to_bgr
 
     def apply(self, sample, context=None):
         im = sample['image']
         im = im.transpose((2, 0, 1))
+        if self.to_bgr:
+            im = im[[2, 1, 0], :, :]
         sample['image'] = im
         return sample
 

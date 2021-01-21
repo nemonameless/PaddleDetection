@@ -154,11 +154,11 @@ class PermuteOp(object):
     """permute image
     Args:
         to_bgr (bool): whether convert RGB to BGR 
-        channel_first (bool): whether convert HWC to CHW
     """
 
-    def __init__(self, ):
+    def __init__(self, to_bgr=False):
         super(PermuteOp, self).__init__()
+        self.to_bgr = to_bgr
 
     def __call__(self, im, im_info):
         """
@@ -170,6 +170,8 @@ class PermuteOp(object):
             im_info (dict): info of processed image
         """
         im = im.transpose((2, 0, 1)).copy()
+        if self.to_bgr:
+            im = im[[2, 1, 0], :, :]
         return im, im_info
 
 
