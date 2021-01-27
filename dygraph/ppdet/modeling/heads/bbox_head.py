@@ -78,6 +78,75 @@ class TwoFCHead(nn.Layer):
 
 
 @register
+class XConvNormHead(nn.Layer):
+
+    __shared__ = ['roi_stages', 'norm_type', 'freeze_norm']
+
+    def __init__(self, 
+                 in_dim=256, 
+                 mlp_dim=1024, 
+                 resolution=7, 
+                 roi_stages=1, 
+                 num_conv=4, 
+                 norm_type=None, 
+                 freeze_norm=False):
+        super(XConvNormHead, self).__init__()
+        self.in_dim = in_dim
+        self.mlp_dim = mlp_dim
+        self.roi_stages = roi_stages
+        fan = in_dim * resolution * resolution
+        self.num_conv = num_conv
+        self.norm_type = norm_type
+        self.freeze_norm = freeze_norm
+
+        self.xconv_list = []
+        self.fc6_list = []
+        # self.fc6_relu_list = []
+        for stage in range(roi_stages):
+            subnet_convs = []
+            for i in range(self.num_conv):
+                conv_name = 'stage{}_bbox_head_conv{}'.format(stage, i)
+                conv = self.add_sublayer(
+                    ch_in=in_dim,
+                    ch_out=in_dim,
+                    filter_size=3,
+                    stride=1,
+                    norm_type=norm_type,
+                    use_dcn=False,
+                    norm_name=conv_name + '_norm',
+                    bias_on=False,
+                    lr_scale=2.,
+                    name=conv_name))
+                subnet_convs.append(conv)
+            self.xconv_list.append(subnet_convs)
+
+            fc6_name = 'fc6_{}'.format(stage)
+            lr_factor = 2**stage
+            fc6 = self.add_sublayer(
+                fc6_name,
+                nn.Linear(
+                    in_dim * resolution * resolution,
+                    mlp_dim,
+                    weight_attr=ParamAttr(
+                        learning_rate=lr_factor,
+                        initializer=XavierUniform(fan_out=fan)),
+                    bias_attr=ParamAttr(
+                        learning_rate=2. * lr_factor, regularizer=L2Decay(0.))))
+            # fc6_relu = self.add_sublayer(fc6_name + 'act', ReLU())
+            self.fc6_list.append(fc6)
+            # self.fc6_relu_list.append(fc6_relu)
+
+    def forward(self, rois_feat, stage=0):
+        x = paddle.flatten(rois_feat, start_axis=1, stop_axis=-1)
+        for conv in self.xconv_list[stage]:
+            x = F.relu(conv(x))
+        fc6 = self.fc6_list[stage](x)
+        fc6_relu = F.relu(fc6)
+
+        return fc6_relu
+
+
+@register
 class BBoxFeat(nn.Layer):
     __inject__ = ['roi_extractor', 'head_feat']
 

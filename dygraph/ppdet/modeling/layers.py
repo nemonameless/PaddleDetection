@@ -116,12 +116,17 @@ class ConvNormLayer(nn.Layer):
                  ch_out,
                  filter_size,
                  stride,
+                 groups=1,
+                 norm_decay=0.,
                  norm_type='bn',
                  norm_groups=32,
+                 dilation=1,
+                 lr_scale=1,
+                 freeze_norm=False,
                  use_dcn=False,
                  norm_name=None,
+                 initializer=Normal(mean=0., std=0.01),
                  bias_on=False,
-                 lr_scale=1.,
                  name=None):
         super(ConvNormLayer, self).__init__()
         assert norm_type in ['bn', 'sync_bn', 'gn']
@@ -140,12 +145,12 @@ class ConvNormLayer(nn.Layer):
                 out_channels=ch_out,
                 kernel_size=filter_size,
                 stride=stride,
-                padding=(filter_size - 1) // 2,
-                groups=1,
+                padding=(filter_size - 1) // 2 * dilation,
+                dilation=dilation,
+                groups=groups,
                 weight_attr=ParamAttr(
                     name=name + "_weight",
-                    initializer=Normal(
-                        mean=0., std=0.01),
+                    initializer=initializer,
                     learning_rate=1.),
                 bias_attr=bias_attr)
         else:
@@ -155,12 +160,12 @@ class ConvNormLayer(nn.Layer):
                 out_channels=ch_out,
                 kernel_size=filter_size,
                 stride=stride,
-                padding=(filter_size - 1) // 2,
-                groups=1,
+                padding=(filter_size - 1) // 2 * dilation,
+                dilation=dilation,
+                groups=groups,
                 weight_attr=ParamAttr(
                     name=name + "_weight",
-                    initializer=Normal(
-                        mean=0., std=0.01),
+                    initializer=initializer,
                     learning_rate=1.),
                 bias_attr=True,
                 lr_scale=2.,
@@ -170,11 +175,11 @@ class ConvNormLayer(nn.Layer):
         param_attr = ParamAttr(
             name=norm_name + "_scale",
             learning_rate=1.,
-            regularizer=L2Decay(0.))
+            regularizer=L2Decay(norm_decay))
         bias_attr = ParamAttr(
             name=norm_name + "_offset",
             learning_rate=1.,
-            regularizer=L2Decay(0.))
+            regularizer=L2Decay(norm_decay))
         if norm_type in ['bn', 'sync_bn']:
             self.norm = nn.BatchNorm2D(
                 ch_out, weight_attr=param_attr, bias_attr=bias_attr)
