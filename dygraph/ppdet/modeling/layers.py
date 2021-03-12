@@ -30,7 +30,9 @@ from ppdet.core.workspace import register, serializable
 from ppdet.modeling.bbox_utils import delta2bbox
 from . import ops
 
-from paddle.vision.ops import DeformConv2D
+# from paddle.vision.ops import DeformConv2D
+from paddle.fluid.layers import utils
+from paddle.fluid.layer_helper import LayerHelper
 
 
 @register
@@ -155,6 +157,63 @@ def _to_list(l):
     if isinstance(l, (list, tuple)):
         return list(l)
     return [l]
+
+
+class DeformConv2D(nn.Layer):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 dilation=1,
+                 groups=1,
+                 weight_attr=None,
+                 bias_attr=None):
+        super(DeformConv2D, self).__init__()
+        assert weight_attr is not False, "weight_attr should not be False in Conv."
+        self._weight_attr = weight_attr
+        self._bias_attr = bias_attr
+        self._groups = groups
+        self._in_channels = in_channels
+        self._out_channels = out_channels
+        self._channel_dim = 1
+
+        self._stride = utils.convert_to_list(stride, 2, 'stride')
+        self._dilation = utils.convert_to_list(dilation, 2, 'dilation')
+        self._kernel_size = utils.convert_to_list(kernel_size, 2, 'kernel_size')
+
+        if in_channels % groups != 0:
+            raise ValueError("in_channels must be divisible by groups.")
+
+        self._padding = utils.convert_to_list(padding, 2, 'padding')
+
+        filter_shape = [out_channels, in_channels // groups] + self._kernel_size
+
+        def _get_default_param_initializer():
+            filter_elem_num = np.prod(self._kernel_size) * self._in_channels
+            std = (2.0 / filter_elem_num)**0.5
+            return Normal(0.0, std, 0)
+
+        self.weight = self.create_parameter(
+            shape=filter_shape,
+            attr=self._weight_attr,
+            default_initializer=_get_default_param_initializer())
+        self.bias = self.create_parameter(
+            attr=self._bias_attr, shape=[self._out_channels], is_bias=True)
+
+    def forward(self, x, offset, mask=None):
+        out = ops.deform_conv2d(
+            x=x,
+            offset=offset,
+            weight=self.weight,
+            bias=self.bias,
+            stride=self._stride,
+            padding=self._padding,
+            dilation=self._dilation,
+            groups=self._groups,
+            mask=mask)
+        return out
 
 
 class DeformableConvV2(nn.Layer):
